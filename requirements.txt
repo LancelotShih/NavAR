@@ -1,0 +1,8 @@
+# torch / torchvision are installed separately (CUDA-bundled wheels); see README.
+segmentation-models-pytorch
+opencv-python-headless
+albumentations
+numpy
+pillow
+tqdm
+matplotlib

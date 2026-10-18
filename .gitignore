@@ -1,0 +1,18 @@
+# Data and environments
+data/
+.venv/
+
+# Checkpoints and weights
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+
+# Python
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+
+# Logs / outputs
+runs/
+outputs/
