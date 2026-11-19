@@ -1,0 +1,33 @@
+# Merge of the ADE20K 150-class labels into floor / not floor / ignore.
+#
+# Classes are named, not numbered: each entry must match exactly one row of
+# objectInfo150.txt, either the full Name field or one of its comma-separated
+# synonyms (case-insensitive). Indices are looked up at prep time.
+# Every class not listed here is "not floor". ADE20K's unlabeled pixels (0)
+# are always ignored.
+
+output_values:
+  not_floor: 0
+  floor: 1
+  ignore: 255
+
+# Walkable ground surfaces, indoor and outdoor.
+floor:
+  - floor
+  - rug
+  - road
+  - sidewalk
+  - path
+  - earth
+  - land
+  - dirt track
+  - grass
+  - field
+  - sand
+  - runway
+
+# Walkable but not a ground plane; excluded from the loss rather than forced
+# into either class.
+ignore:
+  - stairs
+  - step
