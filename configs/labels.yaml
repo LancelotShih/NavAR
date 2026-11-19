@@ -11,23 +11,23 @@ output_values:
   floor: 1
   ignore: 255
 
-# Walkable ground surfaces, indoor and outdoor.
+# Walkable ground surfaces for a pedestrian, indoor and outdoor.
+# Road is deliberately "not floor" (see proposal: the target is a pedestrian).
 floor:
   - floor
   - rug
-  - road
   - sidewalk
   - path
-  - earth
-  - land
-  - dirt track
-  - grass
-  - field
-  - sand
-  - runway
 
-# Walkable but not a ground plane; excluded from the loss rather than forced
-# into either class.
+# Ambiguous ground: walkable but not a ground plane (stairs, escalators) or
+# natural terrain we don't want to force either way. Excluded from the loss
+# and metrics rather than forced into either class.
 ignore:
   - stairs
+  - stairway
   - step
+  - escalator
+  - grass
+  - earth
+  - field
+  - sand
