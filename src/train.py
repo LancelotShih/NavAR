@@ -111,14 +111,14 @@ def main():
             f.flush()
             print(f"epoch {epoch:2d}/{args.epochs}  lr {lr:.2e}  train {train_loss:.4f}  "
                 f"val {val['loss']:.4f}  IoU {val['iou']:.4f}  "
-                f"P {val['precision']:.3f}  R {val['recall']:.3f}  ({secs:.0f}s)")
+                f"P {val['precision']:.3f}  R {val['recall']:.3f}  ({secs:.0f}s)", flush=True)
 
             ckpt = {"epoch": epoch, "model": model.state_dict(), "val": val, "args": vars(args)}
             torch.save(ckpt, out / "last.pt")
             if val["iou"] > best_iou:
                 best_iou = val["iou"]
                 torch.save(ckpt, out / "best.pt")
-                print(f"  new best IoU {best_iou:.4f} → saved best.pt")
+                print(f"  new best IoU {best_iou:.4f} → saved best.pt", flush=True)
 
 
 if __name__ == "__main__":
