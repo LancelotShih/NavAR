@@ -1,0 +1,6 @@
+# Build with:  cd documentation/progress_report && latexmk
+# Finds the shared course style (../aps360.sty) and writes build files to build/.
+ensure_path('TEXINPUTS', '../');
+$pdf_mode = 1;
+$out_dir = 'build';
+@default_files = ('main.tex');

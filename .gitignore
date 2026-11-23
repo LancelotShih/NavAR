@@ -16,3 +16,10 @@ __pycache__/
 # Logs / outputs
 runs/
 outputs/
+
+# documentation templates
+/documentation/aps360.sty
+/documentation/template.tex
+
+# LaTeX build output
+documentation/**/build/
