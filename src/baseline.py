@@ -17,7 +17,7 @@ from src.metrics import FloorMetrics
 
 REPO = Path(__file__).resolve().parent.parent
 OUT = REPO / "runs" / "baseline"
-THRESHOLDS = [1, 2, 3, 4, 6, 8, 10, 12, 16, 20, 25, 30, 40, 50, 75, 100]
+THRESHOLDS = [10, 25, 50, 75, 100, 150, 200, 250, 300, 400, 600, 800, 1000, 1500, 2500, 5000] # on the MSE
 
 def baseline_transform(size: int = 256) -> A.Compose:
     # resizing photo so the short side is 256, same as UNet sizing
@@ -34,13 +34,9 @@ def color_distance(rgb: np.ndarray) -> np.ndarray:
     rows, cols = seed_patch(h, w)
     seed = lab[rows, cols].reshape(-1, 3)
 
-    mean = seed.mean(axis=0)
-    cov = np.cov(seed, rowvar=False) + np.eye(3)
-    inv = np.linalg.inv(cov)
-
-    diff = lab.reshape(-1, 3) - mean
-    d2 = np.einsum("ij,jk,ik->i", diff, inv, diff)# 
-    return d2.reshape(h, w)
+    mean = seed.mean(axis=0) # average floor color (L, a, b)
+    diff = lab - mean # (H, W, 3): each pixel's error from that average
+    return np.mean(diff ** 2, axis=2) # (H, W): MSE over the 3 color channels
 
 def to_rgb(image: torch.Tensor) -> np.ndarray:
     # convert between dataset color format to OpenCV color format to perform color distance
@@ -53,9 +49,9 @@ def tune(split: str = "val", workers: int = 6) -> None:
     metrics = {t: FloorMetrics() for t in THRESHOLDS}
 
     for image, mask in loader:
-        d2 = torch.from_numpy(color_distance(to_rgb(image)))
+        mse = torch.from_numpy(color_distance(to_rgb(image)))
         for t, m in metrics.items():
-            m.update(d2 < t, mask) # the pixel is "floor" if distance "d2" is less than "t"
+            m.update(mse < t, mask) # the pixel is "floor" if its "mse" is less than "t"
 
     rows = [{"threshold": t, **m.compute()} for t, m in metrics.items()]
     best = max(rows, key=lambda r: r["iou"])
