@@ -6,3 +6,5 @@ numpy
 pillow
 tqdm
 matplotlib
+imageio-ffmpeg
+yt-dlp
