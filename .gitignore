@@ -1,6 +1,7 @@
 # Data and environments
 data/
 .venv/
+.venv-labelme/
 
 # Checkpoints and weights
 checkpoints/

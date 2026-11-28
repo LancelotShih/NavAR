@@ -70,21 +70,24 @@ def evaluate(split, model, threshold, device, workers):
     for i, ((x, _), (image, mask)) in enumerate(tqdm(pairs, total=len(model_ds), desc=split)):
         h, w = mask.shape
         preds = predict_both(model, threshold, x, image, h, w, device)
-        cls = ade_classes(split, model_ds.ids[i], (h, w))
         valid = (mask != IGNORE).numpy()
-        total += np.bincount(cls[valid], minlength=151)
+        # my own photos have no ADE class labels, so the by-class tallies are ADE-only
+        cls = ade_classes(split, model_ds.ids[i], (h, w)) if split in FOLDER else None
+        if cls is not None:
+            total += np.bincount(cls[valid], minlength=151)
 
         row = {"id": model_ds.ids[i], "floor_frac": (mask == 1).float().mean().item()}
         for m, p in preds.items():
             metrics[m].update(p, mask)
-            said_floor[m] += np.bincount(cls[valid & p.numpy()], minlength=151)
+            if cls is not None:
+                said_floor[m] += np.bincount(cls[valid & p.numpy()], minlength=151)
             row[m] = image_iou(p, mask)
             row[f"{m}_pred_frac"] = p.float().mean().item()
         per_image.append(row)
 
     return metrics, said_floor, total, per_image
 
-def summarize(metrics, said_floor, total, per_image):
+def summarize(metrics, said_floor, total, per_image, by_class=True):
     # turns the tallies of valid pixels for each model into an output we can read
     floor_ids = set(FLOOR_CLASSES.values())
     no_floor = [r for r in per_image if r["floor_frac"] == 0]
@@ -93,13 +96,20 @@ def summarize(metrics, said_floor, total, per_image):
         fp = said_floor[m].copy()
         fp[list(floor_ids)] = 0
         top_fp = np.argsort(-fp)[:6]
+        ious = [r[m] for r in per_image if r[m] is not None and r["floor_frac"] > 0.05]
         out[m] = {
             **metrics[m].compute(),
+            "mean_image_iou": float(np.mean(ious)) if ious else None,
+            "no_floor_images_with_false_floor":
+                sum(r[f"{m}_pred_frac"] > 0.01 for r in no_floor) / len(no_floor) if no_floor else None,
+        }
+        if not by_class:
+            continue
+        out[m] |= {
             "recall_by_class": {n: said_floor[m][c] / max(total[c], 1) for n, c in FLOOR_CLASSES.items()},
             "false_alarms_by_class": {CLASS_NAMES[c]: {"share_of_fp": fp[c] / max(fp.sum(), 1),
                                                        "rate": said_floor[m][c] / max(total[c], 1)}
                                       for c in top_fp},
-            "no_floor_images_with_false_floor": sum(r[f"{m}_pred_frac"] > 0.01 for r in no_floor) / len(no_floor),
         }
     return out
 
@@ -140,7 +150,7 @@ def save_figure(ids, split, model, threshold, device, path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--split", default="val", choices=["val", "test"])
+    ap.add_argument("--split", default="val", help="val, test, or a batch of my own photos, e.g. self_batch_2")
     ap.add_argument("--ckpt", type=Path, help="default: best val IoU under runs/")
     ap.add_argument("--examples", nargs="*", default=[], help="extra ADE ids for the figure")
     ap.add_argument("--workers", type=int, default=6)
@@ -158,7 +168,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
 
     metrics, said_floor, total, per_image = evaluate(args.split, model, threshold, device, args.workers)
-    results = summarize(metrics, said_floor, total, per_image)
+    results = summarize(metrics, said_floor, total, per_image, by_class=args.split in FOLDER)
     results["checkpoint"], results["baseline_threshold"] = str(ckpt_path), threshold
     (out / "results.json").write_text(json.dumps(results, indent=2))
     with open(out / "per_image.csv", "w", newline="") as f:
@@ -166,12 +176,14 @@ def main():
         w.writeheader()
         w.writerows(per_image)
 
-    print(f"\n{'method':<10}{'IoU':>8}{'P':>8}{'R':>8}{'no-floor FA':>13}")
+    print(f"\n{len(per_image)} images")
+    print(f"{'method':<10}{'IoU':>8}{'P':>8}{'R':>8}{'img IoU':>9}{'no-floor FA':>13}")
     for m in METHODS:
         r = results[m]
-        print(f"{m:<10}{r['iou']:>8.4f}{r['precision']:>8.3f}{r['recall']:>8.3f}"
-              f"{r['no_floor_images_with_false_floor']:>13.1%}")
-    for m in METHODS:
+        fa = r["no_floor_images_with_false_floor"]
+        print(f"{m:<10}{r['iou']:>8.4f}{r['precision']:>8.3f}{r['recall']:>8.3f}{r['mean_image_iou']:>9.3f}"
+              f"{'n/a' if fa is None else f'{fa:.1%}':>13}")
+    for m in METHODS if args.split in FOLDER else ():
         print(f"\n{m} recall by class: " +
               ", ".join(f"{n} {v:.1%}" for n, v in results[m]["recall_by_class"].items()))
 

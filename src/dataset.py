@@ -19,6 +19,13 @@ MASKS = REPO / "data/ade20k_floor/masks"
 FOLDER = {"train": "training", "val": "training", "test": "validation"}
 IGNORE = 255
 
+def split_dirs(split: str) -> tuple[Path, Path]:
+    # ADE splits live in the ADE folders; any other split name is a batch of my own photos,
+    # e.g. "self_batch_2": photos in data/self_batch_2, masks from scripts/labelme_to_masks.py
+    if split in FOLDER:
+        return IMAGES / FOLDER[split], MASKS / FOLDER[split]
+    return REPO / "data" / split, REPO / "data/self_floor/masks" / split
+
 def build_transform(train: bool, size: int = 256) -> A.Compose:
     resize = A.SmallestMaxSize(max_size=size)
     if train:
@@ -44,7 +51,7 @@ class FloorDataset(Dataset):
     def __init__(self, split: str, transform: A.Compose | None = None):
         self.split = split
         self.ids = (REPO / "splits" / f"{split}.txt").read_text().split()
-        self.folder = FOLDER[split]
+        self.image_dir, self.mask_dir = split_dirs(split)
         self.transform = transform or build_transform(train=(split == "train"))
 
     def __len__(self) -> int:
@@ -52,11 +59,14 @@ class FloorDataset(Dataset):
 
     def __getitem__(self, i: int):
         id_ = self.ids[i]
-        image = cv2.imread(str(IMAGES / self.folder / f"{id_}.jpg"), cv2.IMREAD_COLOR)
+        # IMREAD_COLOR applies the phone's EXIF rotation, matching the upright LabelMe masks
+        image = cv2.imread(str(self.image_dir / f"{id_}.jpg"), cv2.IMREAD_COLOR)
         if image is None:
-            raise FileNotFoundError(str(IMAGES / self.folder / f"{id_}.jpg"))
+            raise FileNotFoundError(str(self.image_dir / f"{id_}.jpg"))
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        mask = cv2.imread(str(MASKS / self.folder / f"{id_}.png"), cv2.IMREAD_UNCHANGED)
+        mask = cv2.imread(str(self.mask_dir / f"{id_}.png"), cv2.IMREAD_UNCHANGED)
+        if mask is None:
+            raise FileNotFoundError(str(self.mask_dir / f"{id_}.png"))
 
         out = self.transform(image=image, mask=mask)
         return out["image"], out["mask"].long()
