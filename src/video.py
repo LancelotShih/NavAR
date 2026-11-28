@@ -52,12 +52,14 @@ class H264Writer:
              "-movflags", "+faststart",    # index at the front so players can start right away
              str(path)],
             stdin=subprocess.PIPE)
+        assert self.proc.stdin is not None  # always a pipe with stdin=PIPE; tells the type checker
+        self.stdin = self.proc.stdin
 
     def write(self, frame_bgr: np.ndarray) -> None:
-        self.proc.stdin.write(np.ascontiguousarray(frame_bgr).tobytes())
+        self.stdin.write(np.ascontiguousarray(frame_bgr).tobytes())
 
     def release(self) -> None:
-        self.proc.stdin.close()
+        self.stdin.close()
         if self.proc.wait() != 0:
             raise RuntimeError("ffmpeg failed to write the video")
 
@@ -85,6 +87,7 @@ def main():
     n_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     writer = None
+    h = w = 0  # set from the first frame; an empty video exits before they're used
     out_path = args.out or REPO / "outputs" / "video" / f"{args.video.stem}_floor.mp4"
     times = {s: [] for s in STEPS}
     floor_share = []
